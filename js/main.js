@@ -1,14 +1,13 @@
 (function () {
   const C = window.CONFIG;
-  const SYMBOL = { GBP: "£", USD: "$", EUR: "€" };
-  let currency = "GBP";
-
   const waLink = (msg) => `https://wa.me/${C.whatsapp}?text=${encodeURIComponent(msg)}`;
-  const fmt = (n) => (Number.isInteger(n) ? n.toString() : n.toFixed(2));
 
   // Brand, contact links
   document.querySelectorAll("[data-brand]").forEach((el) => (el.textContent = C.brand));
   document.title = document.title.replace("Supreme IPTV", C.brand);
+
+  document.querySelectorAll("[data-wa-text]").forEach((el) => (el.textContent = C.whatsappDisplay || `+${C.whatsapp}`));
+  document.querySelectorAll("[data-email-text]").forEach((el) => (el.textContent = C.email));
 
   function bindLinks(root = document) {
     root.querySelectorAll("[data-wa]").forEach((a) => {
@@ -27,41 +26,109 @@
     });
   }
 
-  // Pricing
+  // Reseller packages
+  function renderReseller() {
+    const R = C.reseller, S = C.superReseller;
+    const whole = (n) => `${C.currency}${n.toLocaleString("en-GB")}`;
+    const tiersEl = document.getElementById("resellerTiers");
+    if (tiersEl && R) {
+      tiersEl.innerHTML = R.tiers
+        .map((t, i) => `
+          <label class="tier">
+            <input type="radio" name="reseller-tier" value="${i}" ${t.popular ? "checked" : ""}>
+            <span class="tier__box">${t.popular ? '<i class="tier__hot">Popular</i>' : ""}<b>${t.name}</b><span>${whole(t.price)}</span><small>${t.credits} credits</small></span>
+          </label>`)
+        .join("");
+      if (!tiersEl.querySelector("input:checked")) tiersEl.querySelector("input").checked = true;
+      const update = () => {
+        const t = R.tiers[+tiersEl.querySelector("input:checked").value];
+        document.getElementById("resellerPrice").textContent = whole(t.price);
+        document.getElementById("resellerTierName").textContent = ` · ${t.name} package`;
+        document.getElementById("resellerCredits").innerHTML =
+          `<b>${t.credits} credits</b><span>${C.currency}${(t.price / t.credits).toFixed(2)} per credit</span>`;
+        document.getElementById("resellerFeatures").innerHTML =
+          t.perks.map((f) => `<li class="perk">${f}</li>`).join("") + R.features.map((f) => `<li>${f}</li>`).join("");
+        const buy = document.getElementById("resellerBuy");
+        buy.textContent = `Get ${t.name} package →`;
+        buy.href = waLink(`Hi! I'd like to become a reseller with the ${t.name} package (${whole(t.price)} for ${t.credits} credits). Please send me the details.`);
+      };
+      tiersEl.querySelectorAll("input").forEach((r) => r.addEventListener("change", update));
+      update();
+    }
+    if (document.getElementById("superPrice") && S) {
+      document.getElementById("superPrice").textContent = whole(S.price);
+      document.getElementById("superPeriod").textContent = ` / ${S.period}`;
+      document.getElementById("superFeatures").innerHTML = S.features.map((f) => `<li>${f}</li>`).join("");
+      document.getElementById("superBuy").href = waLink(`Hi! I'd like to join as a Super Reseller (${whole(S.price)}/${S.period}). Please send me the details.`);
+    }
+  }
+
+  // Pricing with device add-ons
   const plansEl = document.getElementById("plans");
+  const money = (n) => `${C.currency}${n.toFixed(2)}`;
+  const devLabel = (n) => `${n} device${n > 1 ? "s" : ""}`;
+
   function renderPlans() {
     if (!plansEl) return;
-    const s = SYMBOL[currency];
     plansEl.innerHTML = C.plans
       .map((p) => {
-        const price = p.price[currency];
-        const per = p.months ? `${s}${(price / p.months).toFixed(2)}/month` : "Pay once, watch forever";
-        const msg = `Hi! I'd like to order the ${p.name} plan (${p.term}, ${s}${fmt(price)}).`;
+        const options = p.prices
+          .map((total, i) => {
+            const extra = total - p.prices[0];
+            return `
+            <label class="addon">
+              <input type="radio" name="dev-${p.id}" value="${i}" ${i === 0 ? "checked" : ""}>
+              <span class="addon__box">
+                <span class="addon__name">${i === 0 ? "1 device <em>included</em>" : `${devLabel(i + 1)} <em>add-on</em>`}</span>
+                <span class="addon__price">${i === 0 ? "" : `+${money(extra)}`}</span>
+              </span>
+            </label>`;
+          })
+          .join("");
         return `
-        <article class="plan${p.featured ? " plan--featured" : ""}">
+        <article class="plan${p.featured ? " plan--featured" : ""}" data-plan="${p.id}">
           ${p.badge ? `<span class="plan__badge">${p.badge}</span>` : ""}
           <h3>${p.name}</h3>
-          <p class="plan__term">${p.term} · ${p.screens} screens</p>
-          <p class="plan__price">${s}${fmt(price)}</p>
-          <p class="plan__per">${per}</p>
-          <ul>
-            ${p.features.map((f) => `<li>${f}</li>`).join("")}
-            ${p.excluded.map((f) => `<li class="no">${f}</li>`).join("")}
-          </ul>
-          <a class="btn ${p.featured ? "btn--primary" : "btn--ghost"} btn--block" data-wa="${msg.replace(/"/g, "&quot;")}" href="#">Get started</a>
+          <p class="plan__term">${p.months ? "One payment, no auto-renewal" : "One-time payment"}</p>
+          <p class="plan__price" aria-live="polite"></p>
+          <p class="plan__per"></p>
+          <fieldset class="addons">
+            <legend>Choose devices</legend>
+            ${options}
+          </fieldset>
+          <p class="plan__breakdown"></p>
+          <ul>${C.features.map((f) => `<li>${f}</li>`).join("")}</ul>
+          <a class="btn ${p.featured ? "btn--primary" : "btn--ghost"} btn--block plan__buy" href="#" target="_blank" rel="noopener">Get started</a>
         </article>`;
       })
       .join("");
-    bindLinks(plansEl);
-  }
 
-  document.querySelectorAll("[data-cur]").forEach((b) =>
-    b.addEventListener("click", () => {
-      currency = b.dataset.cur;
-      document.querySelectorAll("[data-cur]").forEach((x) => x.classList.toggle("active", x === b));
-      renderPlans();
-    })
-  );
+    plansEl.querySelectorAll(".plan").forEach((card) => {
+      const p = C.plans.find((x) => x.id === card.dataset.plan);
+      const update = () => {
+        const i = +card.querySelector("input:checked").value;
+        const total = p.prices[i];
+        const extra = total - p.prices[0];
+        card.querySelector(".plan__price").textContent = money(total);
+        card.querySelector(".plan__per").textContent = p.months
+          ? `${money(total / p.months)}/month · ${devLabel(i + 1)}`
+          : `Lifetime access · ${devLabel(i + 1)}`;
+        card.querySelector(".plan__breakdown").innerHTML = i
+          ? `${money(p.prices[0])} plan + ${money(extra)} ${i + 1}-device add-on = <b>${money(total)}</b>`
+          : "&nbsp;";
+        const msg = `Hi! I'd like to order the ${p.name} plan with ${devLabel(i + 1)}. Total: ${money(total)}.`;
+        card.querySelector(".plan__buy").href = waLink(msg);
+      };
+      card.querySelectorAll("input").forEach((r) => r.addEventListener("change", update));
+      update();
+    });
+
+    renderReseller();
+
+    // "From £x/month" text elsewhere on the page
+    const lowest = Math.min(...C.plans.filter((p) => p.months).map((p) => p.prices[0] / p.months));
+    document.querySelectorAll("[data-from-price]").forEach((el) => (el.textContent = `From ${money(lowest)}`));
+  }
 
   // Mobile nav
   const burger = document.querySelector(".burger");
