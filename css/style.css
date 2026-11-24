@@ -276,6 +276,11 @@ h3 { font-size: 1.2rem; margin-bottom: 8px; }
 
 .wa-float { position: fixed; right: 20px; bottom: 20px; z-index: 60; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font-size: 1.6rem; background: var(--wa); box-shadow: 0 10px 30px -6px rgba(37,211,102,.6); transition: transform .2s; }
 .wa-float:hover { transform: scale(1.08); }
+.wa-float { color: #fff; }
+.wa-float::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 0 rgba(37,211,102,.6); animation: waRing 2.2s ease-out infinite; }
+@keyframes waRing { to { box-shadow: 0 0 0 16px rgba(37,211,102,0); } }
+.wa-icon { width: 32px; height: 32px; }
+.wa-icon--btn { width: 22px; height: 22px; }
 
 /* Legal pages */
 .legal { padding: 70px 0 100px; }
